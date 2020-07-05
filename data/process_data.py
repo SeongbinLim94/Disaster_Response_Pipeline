@@ -5,6 +5,10 @@ from sqlalchemy import create_engine
 
 
 def load_data(messages_filepath, categories_filepath):
+    '''
+    Load messages and categories csv files from the file path given,
+    and merge them into a dataframe.
+    '''
     messages = pd.read_csv(messages_filepath)
     categories = pd.read_csv(categories_filepath)
     df = messages.join(categories.set_index('id'), on='id')
@@ -12,25 +16,35 @@ def load_data(messages_filepath, categories_filepath):
 
 
 def clean_data(df):
+    '''
+    Process data for analysis and modeling.
+    '''
+    # split categories into separate category columns
     categories = df['categories'].str.split(';', expand=True)
     row = categories.loc[0]
     category_colnames = row.apply(lambda col: col[:-2]).values
     categories.columns = category_colnames
     
+    # convert category values to just numbers 0 or 1
     for column in categories:
         categories[column] = categories[column].astype(str).str[-1].astype(int)
     
+    # replace categories column in df with new category columns
     df.drop(columns='categories', inplace=True)
-    
     df = pd.concat([df, categories], axis=1)
     
+    # remove duplicates & index with erroenous data(Related column can't have other values than 0 or 1)
     df.drop_duplicates(inplace=True)
+    df.drop(df[df['related']==2].index ,inplace=True)
     return df    
     
     
 def save_data(df, database_filepath):
+    '''
+    Save the clean dataset into an sqlite database.
+    '''
     engine = create_engine('sqlite:///{}'.format(database_filepath))
-    df.to_sql('message_with_category', engine, index=False)
+    df.to_sql('message_with_category', engine, if_exists='replace', index=False)
 
 
 def main():
